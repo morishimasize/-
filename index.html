@@ -1,0 +1,2732 @@
+<!--
+  更新日: 2026-05-10
+  変更内容:
+  - 買い物リストを3ステップ構成にリニューアル
+    ① 何日分を買う？（曜日選択）
+    ② 冷凍/レトルトで済ます献立を指定
+    ③ 家にあるもの（在庫）をチェック
+  - 季節に応じた買い物のヒントを表示
+    （夏→3〜4日推奨、冬→1週間OK）
+  - 共有テキストも対象日数だけのリストに変更
+-->
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+  <meta name="robots" content="noindex">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="献立">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="theme-color" content="#FF8C42">
+
+  <link rel="apple-touch-icon" href="icon-180.png">
+  <link rel="apple-touch-icon" sizes="152x152" href="icon-152.png">
+  <link rel="apple-touch-icon" sizes="167x167" href="icon-167.png">
+  <link rel="apple-touch-icon" sizes="180x180" href="icon-180.png">
+
+  <link rel="manifest" href="manifest.json">
+
+  <title>うちの献立アプリ</title>
+
+  <style>
+    /* ============================================
+       カラーパレット & 基本設定
+       ============================================ */
+    :root {
+      --bg: #FFF7E6;
+      --bg-soft: #FFEFD0;
+      --card: #FFFFFF;
+      --primary: #FF8C42;
+      --primary-dark: #E76F1F;
+      --secondary: #6BCB77;
+      --secondary-dark: #4FA85B;
+      --accent: #FFD93D;
+      --coral: #FF6B9D;
+      --text: #2D2D2D;
+      --text-muted: #888;
+      --border: #FFE5C4;
+      --shadow: 0 4px 14px rgba(255, 140, 66, 0.12);
+      --shadow-lg: 0 8px 24px rgba(255, 140, 66, 0.18);
+      --radius: 18px;
+      --radius-sm: 12px;
+    }
+
+    * {
+      -webkit-tap-highlight-color: transparent;
+      -webkit-touch-callout: none;
+      box-sizing: border-box;
+    }
+
+    html, body {
+      margin: 0;
+      padding: 0;
+      font-family: -apple-system, BlinkMacSystemFont, 'Hiragino Sans',
+                   'Hiragino Kaku Gothic ProN', 'Yu Gothic', sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      -webkit-font-smoothing: antialiased;
+      overscroll-behavior-y: contain;
+    }
+
+    body {
+      min-height: 100vh;
+      padding-top: env(safe-area-inset-top);
+      padding-bottom: calc(70px + env(safe-area-inset-bottom));
+    }
+
+    button, input, textarea, select {
+      font-family: inherit;
+      font-size: inherit;
+      color: inherit;
+    }
+
+    /* ============================================
+       ヘッダー
+       ============================================ */
+    .header {
+      background: linear-gradient(135deg, var(--accent) 0%, var(--primary) 100%);
+      padding: 18px 20px 16px;
+      color: white;
+      text-align: center;
+      box-shadow: 0 2px 10px rgba(255, 140, 66, 0.25);
+      position: sticky;
+      top: 0;
+      z-index: 10;
+    }
+    .header h1 {
+      margin: 0;
+      font-size: 22px;
+      font-weight: 700;
+      letter-spacing: 0.02em;
+    }
+    .header .subtitle {
+      font-size: 12px;
+      opacity: 0.95;
+      margin-top: 2px;
+    }
+
+    /* ============================================
+       スクリーン共通
+       ============================================ */
+    .screen {
+      padding: 16px 14px 20px;
+      max-width: 720px;
+      margin: 0 auto;
+    }
+    .screen[hidden] { display: none !important; }
+
+    .section-title {
+      font-size: 15px;
+      font-weight: 700;
+      margin: 14px 6px 10px;
+      color: var(--text);
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    /* ============================================
+       カード
+       ============================================ */
+    .card {
+      background: var(--card);
+      border-radius: var(--radius);
+      padding: 16px;
+      margin-bottom: 12px;
+      box-shadow: var(--shadow);
+      border: 1px solid #FFF;
+    }
+
+    /* ============================================
+       ボタン
+       ============================================ */
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      border: none;
+      border-radius: var(--radius-sm);
+      padding: 14px 18px;
+      font-size: 15px;
+      font-weight: 700;
+      cursor: pointer;
+      transition: transform 0.1s, opacity 0.2s;
+      white-space: nowrap;
+    }
+    .btn:active { transform: scale(0.97); opacity: 0.85; }
+
+    .btn-primary {
+      background: var(--primary);
+      color: white;
+      box-shadow: 0 4px 12px rgba(255, 140, 66, 0.35);
+    }
+    .btn-secondary {
+      background: var(--secondary);
+      color: white;
+      box-shadow: 0 4px 12px rgba(107, 203, 119, 0.3);
+    }
+    .btn-accent {
+      background: var(--accent);
+      color: var(--text);
+      box-shadow: 0 4px 12px rgba(255, 217, 61, 0.4);
+    }
+    .btn-ghost {
+      background: transparent;
+      color: var(--primary);
+      border: 1.5px solid var(--primary);
+    }
+    .btn-danger-ghost {
+      background: transparent;
+      color: #d04040;
+      border: 1.5px solid #d04040;
+    }
+    .btn-block {
+      width: 100%;
+      padding: 16px 18px;
+      font-size: 17px;
+    }
+    .btn-sm {
+      padding: 8px 12px;
+      font-size: 13px;
+    }
+
+    .big-action-btn {
+      width: 100%;
+      background: linear-gradient(135deg, var(--primary) 0%, var(--coral) 100%);
+      color: white;
+      padding: 20px 18px;
+      font-size: 18px;
+      font-weight: 800;
+      border: none;
+      border-radius: var(--radius);
+      cursor: pointer;
+      box-shadow: var(--shadow-lg);
+      letter-spacing: 0.02em;
+      margin: 8px 0 16px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+      transition: transform 0.1s;
+    }
+    .big-action-btn:active { transform: scale(0.98); }
+    .big-action-btn .dice {
+      font-size: 24px;
+      animation: wiggle 2s infinite;
+    }
+    @keyframes wiggle {
+      0%, 100% { transform: rotate(0); }
+      25% { transform: rotate(-10deg); }
+      75% { transform: rotate(10deg); }
+    }
+
+    /* ============================================
+       入力欄・チップ
+       ============================================ */
+    .input-row {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 8px;
+    }
+    .input {
+      flex: 1;
+      padding: 12px 14px;
+      border: 1.5px solid var(--border);
+      border-radius: var(--radius-sm);
+      background: white;
+      font-size: 15px;
+      outline: none;
+      transition: border-color 0.2s;
+      min-width: 0;
+    }
+    .input:focus { border-color: var(--primary); }
+
+    .chips {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      margin-top: 6px;
+      min-height: 8px;
+    }
+    .chip {
+      background: var(--accent);
+      color: var(--text);
+      padding: 6px 10px 6px 12px;
+      border-radius: 20px;
+      font-size: 13px;
+      font-weight: 600;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .chip button {
+      background: rgba(0,0,0,0.15);
+      border: none;
+      width: 18px;
+      height: 18px;
+      border-radius: 50%;
+      cursor: pointer;
+      font-size: 11px;
+      line-height: 1;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: white;
+    }
+
+    .hint {
+      font-size: 12px;
+      color: var(--text-muted);
+      margin: 4px 0 0;
+    }
+
+    /* ============================================
+       献立カード（生成された7日分）
+       ============================================ */
+    .menu-list { display: flex; flex-direction: column; gap: 10px; }
+
+    .day-card {
+      background: var(--card);
+      border-radius: var(--radius);
+      padding: 12px 14px;
+      box-shadow: var(--shadow);
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      transition: transform 0.1s;
+      border-left: 5px solid var(--accent);
+    }
+    .day-card:active { transform: scale(0.99); }
+    .day-card.is-wish { border-left-color: var(--coral); }
+    .day-card.is-seasonal { border-left-color: var(--secondary); }
+
+    .day-card .day-label {
+      width: 44px;
+      text-align: center;
+      flex-shrink: 0;
+    }
+    .day-card .day-name {
+      font-weight: 700;
+      font-size: 16px;
+      color: var(--primary);
+    }
+    .day-card .day-date {
+      font-size: 11px;
+      color: var(--text-muted);
+    }
+    .day-card .meal-thumb {
+      width: 52px;
+      height: 52px;
+      border-radius: 12px;
+      background: var(--bg-soft);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 30px;
+      flex-shrink: 0;
+      overflow: hidden;
+    }
+    .day-card .meal-thumb img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+    }
+    .day-card .meal-info {
+      flex: 1;
+      min-width: 0;
+    }
+    .day-card .meal-name {
+      font-weight: 700;
+      font-size: 15px;
+      margin: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .day-card .meal-tag {
+      font-size: 11px;
+      color: var(--text-muted);
+      margin-top: 2px;
+    }
+    .day-card .meal-tag.wish-tag { color: var(--coral); font-weight: 600; }
+    .day-card .meal-tag.seasonal-tag { color: var(--secondary-dark); font-weight: 600; }
+    .day-card .arrow {
+      color: var(--text-muted);
+      font-size: 20px;
+      flex-shrink: 0;
+    }
+
+    /* レシピ詳細モーダル */
+    .modal-backdrop {
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.5);
+      z-index: 100;
+      display: flex;
+      align-items: flex-end;
+      justify-content: center;
+    }
+    .modal-backdrop[hidden] { display: none; }
+
+    .modal {
+      background: var(--bg);
+      width: 100%;
+      max-width: 720px;
+      max-height: 90vh;
+      border-radius: 24px 24px 0 0;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      animation: slideUp 0.25s ease-out;
+      padding-bottom: env(safe-area-inset-bottom);
+    }
+    @keyframes slideUp {
+      from { transform: translateY(100%); }
+      to { transform: translateY(0); }
+    }
+
+    .modal-header {
+      padding: 16px 20px 12px;
+      background: linear-gradient(135deg, var(--accent) 0%, var(--primary) 100%);
+      color: white;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-shrink: 0;
+    }
+    .modal-header h2 {
+      margin: 0;
+      font-size: 18px;
+    }
+    .modal-close {
+      background: rgba(255,255,255,0.3);
+      border: none;
+      color: white;
+      width: 32px;
+      height: 32px;
+      border-radius: 50%;
+      font-size: 18px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .modal-handle {
+      width: 36px;
+      height: 4px;
+      background: rgba(0,0,0,0.15);
+      border-radius: 2px;
+      margin: 8px auto 4px;
+    }
+
+    .modal-body {
+      overflow-y: auto;
+      -webkit-overflow-scrolling: touch;
+      padding: 16px;
+      flex: 1;
+    }
+
+    /* レシピ詳細 */
+    .recipe-hero {
+      width: 100%;
+      height: 160px;
+      border-radius: var(--radius);
+      background: var(--bg-soft);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 80px;
+      margin-bottom: 14px;
+      overflow: hidden;
+    }
+    .recipe-hero img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+    }
+
+    .recipe-section h3 {
+      font-size: 15px;
+      margin: 16px 0 8px;
+      color: var(--primary-dark);
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .ingredient-list {
+      list-style: none;
+      padding: 0;
+      margin: 0;
+    }
+    .ingredient-list li {
+      display: flex;
+      justify-content: space-between;
+      padding: 8px 4px;
+      border-bottom: 1px dashed var(--border);
+      font-size: 14px;
+    }
+    .ingredient-list li:last-child { border-bottom: none; }
+    .ingredient-list .ing-name { font-weight: 500; }
+    .ingredient-list .ing-amount { color: var(--text-muted); }
+
+    .step-list {
+      list-style: none;
+      padding: 0;
+      counter-reset: step;
+    }
+    .step-list li {
+      counter-increment: step;
+      display: flex;
+      gap: 12px;
+      padding: 10px 0;
+      align-items: flex-start;
+      font-size: 14px;
+      line-height: 1.6;
+    }
+    .step-list li::before {
+      content: counter(step);
+      flex-shrink: 0;
+      width: 26px;
+      height: 26px;
+      background: var(--primary);
+      color: white;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 700;
+      font-size: 13px;
+    }
+
+    /* ============================================
+       買い物リスト
+       ============================================ */
+    .shopping-list {
+      list-style: none;
+      padding: 0;
+      margin: 0;
+    }
+    .shopping-list li {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 10px 4px;
+      border-bottom: 1px dashed var(--border);
+      font-size: 14px;
+    }
+    .shopping-list li:last-child { border-bottom: none; }
+    .shopping-list .check {
+      margin-right: 10px;
+      width: 22px;
+      height: 22px;
+      border-radius: 6px;
+      border: 2px solid var(--primary);
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+      cursor: pointer;
+      background: white;
+      transition: background 0.15s;
+    }
+    .shopping-list .check.checked {
+      background: var(--secondary);
+      border-color: var(--secondary);
+      color: white;
+    }
+    .shopping-list .check.checked::after { content: '✓'; font-weight: 700; }
+    .shopping-list .item-name {
+      flex: 1;
+      transition: opacity 0.2s;
+    }
+    .shopping-list li.done .item-name {
+      text-decoration: line-through;
+      opacity: 0.5;
+    }
+    .shopping-list .item-amount {
+      color: var(--text-muted);
+      font-size: 13px;
+      margin-left: 8px;
+    }
+
+    .share-row {
+      display: flex;
+      gap: 8px;
+      margin-top: 14px;
+    }
+    .share-row .btn { flex: 1; }
+
+    /* ============================================
+       買い物リスト 3ステップ構成
+       ============================================ */
+    .shopping-section {
+      margin-bottom: 14px;
+      padding: 14px 14px 12px;
+    }
+    .section-title-sm {
+      font-size: 14px;
+      font-weight: 700;
+      color: var(--primary-dark);
+      margin-bottom: 10px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .item-count {
+      background: var(--primary);
+      color: white;
+      font-size: 11px;
+      padding: 2px 8px;
+      border-radius: 10px;
+      margin-left: auto;
+      font-weight: 700;
+    }
+    .day-picker {
+      display: grid;
+      grid-template-columns: repeat(7, 1fr);
+      gap: 5px;
+      margin-bottom: 10px;
+    }
+    .day-chip {
+      border: 2px solid var(--border);
+      background: white;
+      border-radius: 10px;
+      padding: 8px 2px;
+      text-align: center;
+      cursor: pointer;
+      transition: all 0.15s;
+      font-size: 13px;
+      font-weight: 700;
+      user-select: none;
+      min-height: 50px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+    }
+    .day-chip.selected {
+      background: var(--primary);
+      border-color: var(--primary);
+      color: white;
+      box-shadow: 0 2px 6px rgba(255,140,66,0.35);
+    }
+    .day-chip .day-meal {
+      font-size: 9px;
+      margin-top: 2px;
+      display: block;
+      font-weight: 400;
+      opacity: 0.85;
+      max-width: 100%;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .season-hint {
+      background: linear-gradient(135deg, #FFF4E0, #FFEACA);
+      border-left: 3px solid var(--accent);
+      padding: 8px 10px;
+      font-size: 12px;
+      color: var(--text);
+      border-radius: 8px;
+      margin-bottom: 10px;
+      line-height: 1.5;
+    }
+    .picker-actions {
+      display: flex;
+      gap: 6px;
+      justify-content: flex-end;
+    }
+    .btn-mini {
+      background: var(--bg-soft);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 5px 12px;
+      font-size: 11px;
+      color: var(--text-muted);
+      cursor: pointer;
+      font-weight: 600;
+    }
+    .btn-mini:active { background: var(--border); }
+
+    .frozen-list {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+    .frozen-item {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 9px 12px;
+      background: var(--bg-soft);
+      border-radius: 10px;
+      cursor: pointer;
+      font-size: 13px;
+      transition: background 0.15s;
+      user-select: none;
+    }
+    .frozen-item:active { background: var(--border); }
+    .frozen-item.checked {
+      background: #E8F5EC;
+      opacity: 0.75;
+    }
+    .frozen-item.checked .frozen-label {
+      text-decoration: line-through;
+      opacity: 0.7;
+    }
+    .frozen-check {
+      width: 20px;
+      height: 20px;
+      border-radius: 5px;
+      border: 2px solid var(--secondary);
+      flex-shrink: 0;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      background: white;
+    }
+    .frozen-item.checked .frozen-check {
+      background: var(--secondary);
+      border-color: var(--secondary);
+      color: white;
+    }
+    .frozen-item.checked .frozen-check::after {
+      content: '✓';
+      font-weight: 700;
+      font-size: 13px;
+    }
+    .frozen-day {
+      background: var(--primary);
+      color: white;
+      font-size: 11px;
+      padding: 2px 7px;
+      border-radius: 6px;
+      font-weight: 700;
+      min-width: 24px;
+      text-align: center;
+      flex-shrink: 0;
+    }
+    .frozen-label {
+      flex: 1;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .empty-mini {
+      color: var(--text-muted);
+      font-size: 12px;
+      text-align: center;
+      padding: 8px;
+      font-style: italic;
+      margin: 0;
+    }
+    .instock-toggle {
+      width: 100%;
+      background: var(--bg-soft);
+      border: 1px dashed var(--border);
+      border-radius: 10px;
+      padding: 8px;
+      font-size: 12px;
+      color: var(--text-muted);
+      cursor: pointer;
+      text-align: center;
+      margin-bottom: 8px;
+    }
+    .instock-toggle:active { background: var(--border); }
+
+    /* ============================================
+       メニュー一覧
+       ============================================ */
+    .meal-card {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 12px;
+      background: var(--card);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+      margin-bottom: 10px;
+      cursor: pointer;
+    }
+    .meal-card .meal-thumb {
+      width: 50px;
+      height: 50px;
+      flex-shrink: 0;
+      border-radius: 12px;
+      background: var(--bg-soft);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 28px;
+      overflow: hidden;
+    }
+    .meal-card .meal-thumb img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+    }
+    .meal-card .meal-info { flex: 1; min-width: 0; }
+    .meal-card .meal-name {
+      font-weight: 700;
+      font-size: 15px;
+      margin: 0;
+    }
+    .meal-card .meal-meta {
+      font-size: 11px;
+      color: var(--text-muted);
+      margin-top: 2px;
+    }
+    .season-badge {
+      display: inline-block;
+      padding: 2px 8px;
+      border-radius: 10px;
+      font-size: 10px;
+      font-weight: 700;
+      margin-right: 4px;
+    }
+    .season-all { background: #EEE; color: #555; }
+    .season-spring { background: #FFD6E5; color: #C03070; }
+    .season-summer { background: #C8EAFF; color: #2070C0; }
+    .season-autumn { background: #FFE0B0; color: #B05010; }
+    .season-winter { background: #D8E8FF; color: #4060A0; }
+
+    /* メニュー編集モーダル */
+    .form-row { margin-bottom: 12px; }
+    .form-row label {
+      display: block;
+      font-size: 13px;
+      font-weight: 600;
+      margin-bottom: 4px;
+      color: var(--text);
+    }
+    .form-row .input { width: 100%; }
+    .form-row textarea.input { resize: vertical; min-height: 60px; }
+
+    .season-radio-group {
+      display: flex;
+      gap: 6px;
+      flex-wrap: wrap;
+    }
+    .season-radio {
+      flex: 1;
+      min-width: 60px;
+      text-align: center;
+    }
+    .season-radio input { display: none; }
+    .season-radio label {
+      display: block;
+      padding: 8px 6px;
+      background: white;
+      border: 1.5px solid var(--border);
+      border-radius: 10px;
+      cursor: pointer;
+      font-size: 13px;
+      transition: all 0.2s;
+      margin: 0;
+    }
+    .season-radio input:checked + label {
+      background: var(--primary);
+      color: white;
+      border-color: var(--primary);
+    }
+
+    .dynamic-list-item {
+      display: flex;
+      gap: 6px;
+      margin-bottom: 6px;
+    }
+    .dynamic-list-item .input { padding: 8px 10px; font-size: 14px; }
+    .dynamic-list-item .remove-btn {
+      background: #ffe0e0;
+      border: none;
+      color: #c04040;
+      width: 36px;
+      flex-shrink: 0;
+      border-radius: 8px;
+      cursor: pointer;
+      font-size: 16px;
+    }
+    .add-row-btn {
+      background: var(--bg-soft);
+      border: 1.5px dashed var(--primary);
+      color: var(--primary);
+      padding: 8px;
+      border-radius: 10px;
+      width: 100%;
+      cursor: pointer;
+      font-size: 13px;
+      font-weight: 600;
+      margin-top: 4px;
+    }
+
+    .modal-footer {
+      padding: 12px 16px;
+      background: var(--bg);
+      border-top: 1px solid var(--border);
+      display: flex;
+      gap: 8px;
+      flex-shrink: 0;
+    }
+    .modal-footer .btn { flex: 1; }
+
+    /* ============================================
+       タブバー
+       ============================================ */
+    .tab-bar {
+      position: fixed;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      height: calc(60px + env(safe-area-inset-bottom));
+      padding-bottom: env(safe-area-inset-bottom);
+      background: rgba(255, 247, 230, 0.95);
+      backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: blur(20px);
+      border-top: 1px solid var(--border);
+      display: flex;
+      z-index: 50;
+    }
+    .tab-btn {
+      flex: 1;
+      background: none;
+      border: none;
+      cursor: pointer;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      color: var(--text-muted);
+      gap: 2px;
+      font-size: 11px;
+      font-weight: 600;
+      padding: 6px 0;
+    }
+    .tab-btn .icon { font-size: 22px; }
+    .tab-btn.active { color: var(--primary); }
+
+    /* ============================================
+       空状態
+       ============================================ */
+    .empty {
+      text-align: center;
+      padding: 40px 20px;
+      color: var(--text-muted);
+    }
+    .empty .empty-icon {
+      font-size: 60px;
+      margin-bottom: 8px;
+      opacity: 0.6;
+    }
+    .empty p { margin: 6px 0; }
+
+    /* ============================================
+       トースト
+       ============================================ */
+    .toast {
+      position: fixed;
+      bottom: calc(80px + env(safe-area-inset-bottom));
+      left: 50%;
+      transform: translateX(-50%);
+      background: rgba(45, 45, 45, 0.92);
+      color: white;
+      padding: 10px 20px;
+      border-radius: 24px;
+      font-size: 14px;
+      font-weight: 600;
+      z-index: 200;
+      animation: toastIn 0.3s ease-out;
+      pointer-events: none;
+    }
+    @keyframes toastIn {
+      from { opacity: 0; transform: translate(-50%, 10px); }
+      to { opacity: 1; transform: translate(-50%, 0); }
+    }
+  </style>
+</head>
+<body>
+
+  <header class="header">
+    <h1>🍳 うちの献立アプリ</h1>
+    <div class="subtitle">今週の夕飯、これでバッチリ</div>
+  </header>
+
+  <!-- ============================================
+       スクリーン: 献立 (ホーム)
+       ============================================ -->
+  <main id="screen-home" class="screen">
+    <div class="card">
+      <div class="section-title" style="margin-top:0">
+        ✏️ 今週食べたいもの
+      </div>
+      <div class="input-row">
+        <input class="input" id="wish-input" type="text"
+               placeholder="例: 餃子、ラーメン" autocomplete="off">
+        <button class="btn btn-secondary btn-sm" id="wish-add-btn">追加</button>
+      </div>
+      <div class="chips" id="wish-chips"></div>
+      <p class="hint" id="wish-hint">入れた料理は必ず1週間に組み込まれるよ</p>
+    </div>
+
+    <button class="big-action-btn" id="generate-btn">
+      <span class="dice">🎲</span>
+      <span>1週間分の献立を考えて！</span>
+    </button>
+
+    <div id="menu-result"></div>
+  </main>
+
+  <!-- ============================================
+       スクリーン: メニュー一覧
+       ============================================ -->
+  <main id="screen-meals" class="screen" hidden>
+    <div class="section-title" style="margin-top:0; justify-content:space-between;">
+      <span>📚 うちの定番メニュー</span>
+      <button class="btn btn-primary btn-sm" id="add-meal-btn">+ 追加</button>
+    </div>
+    <div id="meals-list"></div>
+  </main>
+
+  <!-- ============================================
+       スクリーン: 設定
+       ============================================ -->
+  <main id="screen-settings" class="screen" hidden>
+    <div class="section-title" style="margin-top:0">⚙️ 設定</div>
+
+    <div class="card">
+      <div class="form-row">
+        <label>季節（旬の食材を自動で組み込む）</label>
+        <div class="season-radio-group" id="season-setting">
+          <div class="season-radio">
+            <input type="radio" name="season-set" value="auto" id="season-auto">
+            <label for="season-auto">自動</label>
+          </div>
+          <div class="season-radio">
+            <input type="radio" name="season-set" value="spring" id="season-spring-set">
+            <label for="season-spring-set">🌸 春</label>
+          </div>
+          <div class="season-radio">
+            <input type="radio" name="season-set" value="summer" id="season-summer-set">
+            <label for="season-summer-set">🌻 夏</label>
+          </div>
+          <div class="season-radio">
+            <input type="radio" name="season-set" value="autumn" id="season-autumn-set">
+            <label for="season-autumn-set">🍁 秋</label>
+          </div>
+          <div class="season-radio">
+            <input type="radio" name="season-set" value="winter" id="season-winter-set">
+            <label for="season-winter-set">⛄ 冬</label>
+          </div>
+        </div>
+        <p class="hint" id="current-season-hint"></p>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="section-title" style="margin-top:0">📤 買い物リストの送り先</div>
+      <p class="hint" style="margin-bottom:8px;">
+        買い物リストの「共有」を押すと iOS の共有シートが出るよ。
+        そこから <b>メモ</b>・<b>リマインダー</b>・LINE・Keep など好きなアプリに送れる。
+      </p>
+    </div>
+
+    <div class="card">
+      <div class="section-title" style="margin-top:0; color:#c04040;">🗑 データのリセット</div>
+      <p class="hint" style="margin-bottom:8px;">
+        追加したメニューや今週の希望など、全部消えるよ。元に戻せないので注意！
+      </p>
+      <button class="btn btn-danger-ghost btn-block" id="reset-btn">全データを初期状態に戻す</button>
+    </div>
+
+    <p class="hint" style="text-align:center; margin-top:20px;">
+      version 1.0 ・ 作: もりもり家
+    </p>
+  </main>
+
+  <!-- ============================================
+       タブバー
+       ============================================ -->
+  <nav class="tab-bar">
+    <button class="tab-btn active" data-tab="home">
+      <span class="icon">🍱</span>
+      <span>献立</span>
+    </button>
+    <button class="tab-btn" data-tab="meals">
+      <span class="icon">📚</span>
+      <span>メニュー</span>
+    </button>
+    <button class="tab-btn" data-tab="settings">
+      <span class="icon">⚙️</span>
+      <span>設定</span>
+    </button>
+  </nav>
+
+  <!-- ============================================
+       モーダル: レシピ詳細
+       ============================================ -->
+  <div class="modal-backdrop" id="recipe-modal" hidden>
+    <div class="modal">
+      <div class="modal-header">
+        <h2 id="recipe-title">レシピ</h2>
+        <button class="modal-close" data-close="recipe-modal">✕</button>
+      </div>
+      <div class="modal-body" id="recipe-body"></div>
+    </div>
+  </div>
+
+  <!-- ============================================
+       モーダル: 買い物リスト（3ステップ）
+       ============================================ -->
+  <div class="modal-backdrop" id="shopping-modal" hidden>
+    <div class="modal">
+      <div class="modal-header">
+        <h2>🛒 買い物リスト</h2>
+        <button class="modal-close" data-close="shopping-modal">✕</button>
+      </div>
+      <div class="modal-body">
+
+        <!-- ① 何日分を買う？ -->
+        <div class="card shopping-section">
+          <div class="section-title-sm">📅 ① 何日分を買う？</div>
+          <div id="day-picker" class="day-picker"></div>
+          <div id="season-hint" class="season-hint" hidden></div>
+          <div class="picker-actions">
+            <button class="btn-mini" id="select-all-days">全部</button>
+            <button class="btn-mini" id="clear-all-days">クリア</button>
+          </div>
+        </div>
+
+        <!-- ② 冷凍/レトルトで済ます -->
+        <div class="card shopping-section">
+          <div class="section-title-sm">🧊 ② 冷凍・レトルトで済ますものは？</div>
+          <div id="frozen-list" class="frozen-list"></div>
+        </div>
+
+        <!-- ③ 家にあるもの（折りたたみ） -->
+        <div class="card shopping-section">
+          <div class="section-title-sm">🥬 ③ 家にあるものは？（任意）</div>
+          <button class="instock-toggle" id="instock-toggle">▼ 在庫チェックを開く</button>
+          <div id="instock-list" class="frozen-list" hidden></div>
+        </div>
+
+        <!-- ④ 買い物リスト -->
+        <div class="card">
+          <div class="section-title-sm">
+            📝 買い物リスト
+            <span class="item-count" id="item-count"></span>
+          </div>
+          <div id="shopping-card"></div>
+        </div>
+
+        <div class="share-row">
+          <button class="btn btn-primary" id="share-btn">📤 共有</button>
+          <button class="btn btn-accent" id="copy-btn">📋 コピー</button>
+        </div>
+        <p class="hint" style="text-align:center; margin-top:10px;">
+          共有 → iOSの共有シートからメモ・リマインダー・LINEなどに送れるよ
+        </p>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============================================
+       モーダル: メニュー編集
+       ============================================ -->
+  <div class="modal-backdrop" id="meal-edit-modal" hidden>
+    <div class="modal">
+      <div class="modal-header">
+        <h2 id="meal-edit-title">メニューを追加</h2>
+        <button class="modal-close" data-close="meal-edit-modal">✕</button>
+      </div>
+      <div class="modal-body">
+        <div class="form-row">
+          <label>料理名</label>
+          <input class="input" id="edit-name" type="text" placeholder="例: 親子丼">
+        </div>
+        <div class="form-row">
+          <label>絵文字（写真がない時に表示）</label>
+          <input class="input" id="edit-emoji" type="text" placeholder="例: 🍱" maxlength="4">
+        </div>
+        <div class="form-row">
+          <label>写真URL（任意）</label>
+          <input class="input" id="edit-image" type="url"
+                 placeholder="https://...   ※空欄なら絵文字を表示">
+          <p class="hint">画像をアップしたい時はGoogle Photosなどでリンクを取得して貼って</p>
+        </div>
+        <div class="form-row">
+          <label>季節</label>
+          <div class="season-radio-group" id="edit-season-group">
+            <div class="season-radio">
+              <input type="radio" name="edit-season" value="all" id="es-all">
+              <label for="es-all">通年</label>
+            </div>
+            <div class="season-radio">
+              <input type="radio" name="edit-season" value="spring" id="es-spring">
+              <label for="es-spring">🌸 春</label>
+            </div>
+            <div class="season-radio">
+              <input type="radio" name="edit-season" value="summer" id="es-summer">
+              <label for="es-summer">🌻 夏</label>
+            </div>
+            <div class="season-radio">
+              <input type="radio" name="edit-season" value="autumn" id="es-autumn">
+              <label for="es-autumn">🍁 秋</label>
+            </div>
+            <div class="season-radio">
+              <input type="radio" name="edit-season" value="winter" id="es-winter">
+              <label for="es-winter">⛄ 冬</label>
+            </div>
+          </div>
+        </div>
+
+        <div class="form-row">
+          <label>材料（4人分）</label>
+          <div id="edit-ingredients"></div>
+          <button class="add-row-btn" id="add-ing-btn">+ 材料を追加</button>
+        </div>
+
+        <div class="form-row">
+          <label>作り方（手順）</label>
+          <div id="edit-steps"></div>
+          <button class="add-row-btn" id="add-step-btn">+ 手順を追加</button>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-danger-ghost" id="delete-meal-btn" hidden>削除</button>
+        <button class="btn btn-primary" id="save-meal-btn">保存</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+  // ================================================================
+  // データ: デフォルトメニュー
+  // ================================================================
+  const DEFAULT_MEALS = [
+    {
+      id: 'yakisoba',
+      name: '焼きそば',
+      emoji: '🍜',
+      image: '',
+      season: 'all',
+      ingredients: [
+        { name: '焼きそば麺（3玉入り）', amount: '1袋' },
+        { name: '豚こま切れ肉', amount: '300g' },
+        { name: 'キャベツ', amount: '1/4玉' },
+        { name: 'もやし', amount: '1袋' },
+        { name: 'ピーマン', amount: '2個' },
+        { name: '玉ねぎ', amount: '1/2個' },
+        { name: 'サラダ油', amount: '大さじ1' }
+      ],
+      steps: [
+        'キャベツはざく切り、ピーマンと玉ねぎは細切りにする',
+        '焼きそば麺は袋のまま少し電子レンジで温めるとほぐれやすい（500W 1分）',
+        'フライパンに油を熱し、豚肉を入れて色が変わるまで炒める',
+        '玉ねぎ→キャベツ→もやし→ピーマンの順で加えて炒める',
+        '麺を加えて全体をほぐしながら炒め、付属のソースで味付けして完成'
+      ]
+    },
+    {
+      id: 'curry',
+      name: 'カレー',
+      emoji: '🍛',
+      image: '',
+      season: 'all',
+      ingredients: [
+        { name: '豚こま肉（または豚バラ）', amount: '300g' },
+        { name: '玉ねぎ', amount: '2個' },
+        { name: 'にんじん', amount: '1本' },
+        { name: 'じゃがいも', amount: '3個' },
+        { name: 'カレールー', amount: '1箱（4人分）' },
+        { name: 'サラダ油', amount: '大さじ1' },
+        { name: '水', amount: '700ml' }
+      ],
+      steps: [
+        '玉ねぎは薄切り、にんじんとじゃがいもは一口大に切る',
+        '鍋に油を熱し、玉ねぎを炒める（しんなりするまで）',
+        '豚肉を加えて炒め、色が変わったらにんじん・じゃがいもを入れる',
+        '水を入れて沸騰したらアクを取り、弱火で15分煮込む',
+        '一度火を止めてカレールーを溶かし入れ、再び弱火で5分煮込んで完成'
+      ]
+    },
+    {
+      id: 'sake-tonjiru',
+      name: '焼き鮭と豚汁',
+      emoji: '🐟',
+      image: '',
+      season: 'all',
+      ingredients: [
+        { name: '生鮭（切り身）', amount: '4切れ' },
+        { name: '塩', amount: '少々' },
+        { name: '豚こま肉', amount: '200g' },
+        { name: '玉ねぎ', amount: '1個' },
+        { name: 'にんじん', amount: '1/2本' },
+        { name: 'じゃがいも', amount: '2個' },
+        { name: '味噌', amount: '大さじ4' },
+        { name: '和風だし', amount: '大さじ1' },
+        { name: '水', amount: '800ml' }
+      ],
+      steps: [
+        '鮭に塩を軽く振って10分おき、出てきた水分を拭き取る',
+        '野菜は一口大に切る。豚肉も食べやすく切る',
+        '鍋に水・だし・豚肉と野菜を入れて中火で煮る（10分）',
+        '魚はグリルで両面焼く（中火で7〜8分）',
+        '豚汁の野菜が柔らかくなったら火を弱め、味噌を溶き入れて完成'
+      ]
+    },
+    {
+      id: 'saba-tonjiru',
+      name: '焼きさばと豚汁',
+      emoji: '🐟',
+      image: '',
+      season: 'all',
+      ingredients: [
+        { name: 'さば（塩さば切り身）', amount: '4切れ' },
+        { name: '豚こま肉', amount: '200g' },
+        { name: '玉ねぎ', amount: '1個' },
+        { name: 'にんじん', amount: '1/2本' },
+        { name: 'じゃがいも', amount: '2個' },
+        { name: '味噌', amount: '大さじ4' },
+        { name: '和風だし', amount: '大さじ1' },
+        { name: '水', amount: '800ml' }
+      ],
+      steps: [
+        '野菜は一口大に切る',
+        '鍋に水・だし・豚肉と野菜を入れて中火で煮る（10分）',
+        'さばはグリルで両面焼く（中火で7〜8分）',
+        '豚汁の野菜が柔らかくなったら火を弱め、味噌を溶き入れて完成'
+      ]
+    },
+    {
+      id: 'aji-tonjiru',
+      name: '焼きあじと豚汁',
+      emoji: '🐟',
+      image: '',
+      season: 'all',
+      ingredients: [
+        { name: 'あじ（開き）', amount: '4枚' },
+        { name: '豚こま肉', amount: '200g' },
+        { name: '玉ねぎ', amount: '1個' },
+        { name: 'にんじん', amount: '1/2本' },
+        { name: 'じゃがいも', amount: '2個' },
+        { name: '味噌', amount: '大さじ4' },
+        { name: '和風だし', amount: '大さじ1' },
+        { name: '水', amount: '800ml' }
+      ],
+      steps: [
+        '野菜は一口大に切る',
+        '鍋に水・だし・豚肉と野菜を入れて中火で煮る（10分）',
+        'あじはグリルで皮目から焼く（中火で5〜6分）',
+        '豚汁の野菜が柔らかくなったら火を弱め、味噌を溶き入れて完成'
+      ]
+    },
+    {
+      id: 'karaage',
+      name: '鶏の唐揚げ',
+      emoji: '🍗',
+      image: '',
+      season: 'all',
+      ingredients: [
+        { name: '鶏もも肉', amount: '600g' },
+        { name: '醤油', amount: '大さじ2' },
+        { name: '酒', amount: '大さじ1' },
+        { name: 'すりおろし生姜', amount: '小さじ1' },
+        { name: 'すりおろしにんにく', amount: '小さじ1' },
+        { name: '片栗粉', amount: '大さじ4' },
+        { name: '揚げ油', amount: '適量' },
+        { name: 'レモン・レタス', amount: '付け合わせに' }
+      ],
+      steps: [
+        '鶏肉は一口大に切り、ボウルで醤油・酒・生姜・にんにくを揉み込んで10分おく',
+        '片栗粉をまぶして余分な粉を落とす',
+        '170℃の油で2〜3分揚げて、いったん取り出す',
+        '油の温度を190℃に上げて、再度1分ほど揚げる（カリッとする）',
+        '油を切ってレタスとレモンを添えて完成'
+      ]
+    },
+    {
+      id: 'hamburg',
+      name: 'ハンバーグ',
+      emoji: '🍔',
+      image: '',
+      season: 'all',
+      ingredients: [
+        { name: '合いびき肉', amount: '500g' },
+        { name: '玉ねぎ', amount: '1個' },
+        { name: 'パン粉', amount: '1/2カップ' },
+        { name: '牛乳', amount: '大さじ3' },
+        { name: '卵', amount: '1個' },
+        { name: '塩こしょう', amount: '少々' },
+        { name: 'ケチャップ', amount: '大さじ4' },
+        { name: 'ウスターソース', amount: '大さじ2' }
+      ],
+      steps: [
+        '玉ねぎをみじん切りにしてレンジで2分加熱、冷ましておく',
+        'ボウルにひき肉・玉ねぎ・パン粉・牛乳・卵・塩こしょうを入れて粘りが出るまで混ぜる',
+        '4等分にして空気を抜きながら小判型に成形する',
+        'フライパンを中火で熱し、油をひいて両面に焼き色をつけてから弱火で5〜6分蒸し焼き',
+        '取り出した後、フライパンにケチャップとソースを入れて軽く煮詰めソースに'
+      ]
+    },
+    {
+      id: 'gyoza',
+      name: '餃子',
+      emoji: '🥟',
+      image: '',
+      season: 'all',
+      ingredients: [
+        { name: '餃子の皮', amount: '40枚' },
+        { name: '豚ひき肉', amount: '300g' },
+        { name: 'キャベツ', amount: '1/4玉' },
+        { name: 'ニラ', amount: '1/2束' },
+        { name: 'すりおろし生姜', amount: '小さじ1' },
+        { name: 'すりおろしにんにく', amount: '小さじ1' },
+        { name: '醤油・ごま油', amount: '各大さじ1' },
+        { name: 'ごま油（焼き用）', amount: '大さじ1' }
+      ],
+      steps: [
+        'キャベツとニラはみじん切り。キャベツは塩を振って水気を絞る',
+        'ボウルにひき肉・野菜・調味料を入れてよく混ぜる',
+        '餃子の皮にタネを乗せ、ヒダを作って包む',
+        'フライパンにごま油を熱し、餃子を並べて焼く',
+        '焼き色がついたら水（50ml）を入れて蓋をし、5分蒸し焼き。最後に蓋を取って水分を飛ばす'
+      ]
+    },
+    {
+      id: 'oyakodon',
+      name: '親子丼',
+      emoji: '🍚',
+      image: '',
+      season: 'all',
+      ingredients: [
+        { name: '鶏もも肉', amount: '400g' },
+        { name: '玉ねぎ', amount: '1個' },
+        { name: '卵', amount: '6個' },
+        { name: 'ご飯', amount: '4膳' },
+        { name: 'めんつゆ（2倍濃縮）', amount: '100ml' },
+        { name: '水', amount: '100ml' },
+        { name: '砂糖', amount: '大さじ1' },
+        { name: '三つ葉・刻み海苔', amount: '適量' }
+      ],
+      steps: [
+        '鶏肉は一口大、玉ねぎは薄切りにする',
+        'フライパンにめんつゆ・水・砂糖・玉ねぎを入れて煮立てる',
+        '鶏肉を加えて中火で5分煮る',
+        '溶き卵を半分回し入れ、半熟になったら残りの卵を入れて蓋をして30秒',
+        'ご飯にのせて三つ葉や海苔を散らして完成'
+      ]
+    },
+    {
+      id: 'mabodofu',
+      name: '麻婆豆腐',
+      emoji: '🌶',
+      image: '',
+      season: 'all',
+      ingredients: [
+        { name: '木綿豆腐', amount: '2丁' },
+        { name: '豚ひき肉', amount: '200g' },
+        { name: '長ねぎ', amount: '1本' },
+        { name: 'すりおろし生姜', amount: '小さじ1' },
+        { name: 'すりおろしにんにく', amount: '小さじ1' },
+        { name: '麻婆豆腐の素（市販）', amount: '1箱' },
+        { name: 'ごま油', amount: '大さじ1' }
+      ],
+      steps: [
+        '豆腐はサイの目切りにして、お湯で軽く茹でておく（崩れにくくなる）',
+        '長ねぎはみじん切り',
+        'フライパンにごま油を熱し、生姜・にんにく・ねぎを炒める',
+        'ひき肉を加えて炒め、色が変わったら麻婆豆腐の素を入れる',
+        '豆腐を加えて2〜3分煮込んで完成（市販の素のとろみ調整に従う）'
+      ]
+    },
+    {
+      id: 'shogayaki',
+      name: '豚のしょうが焼き',
+      emoji: '🥩',
+      image: '',
+      season: 'all',
+      ingredients: [
+        { name: '豚ロース薄切り', amount: '500g' },
+        { name: '玉ねぎ', amount: '1個' },
+        { name: 'すりおろし生姜', amount: '大さじ1' },
+        { name: '醤油', amount: '大さじ3' },
+        { name: 'みりん', amount: '大さじ3' },
+        { name: '酒', amount: '大さじ2' },
+        { name: 'サラダ油', amount: '大さじ1' },
+        { name: 'キャベツ（千切り）', amount: '付け合わせに' }
+      ],
+      steps: [
+        '玉ねぎは薄切り、生姜・醤油・みりん・酒を合わせてタレを作る',
+        'フライパンに油を熱し、玉ねぎをしんなりするまで炒める',
+        '豚肉を広げながら入れて両面焼く',
+        'タレを加えて全体に絡め、軽く煮詰めて完成',
+        'キャベツの千切りを添えて盛り付け'
+      ]
+    },
+    {
+      id: 'omurice',
+      name: 'オムライス',
+      emoji: '🍳',
+      image: '',
+      season: 'all',
+      ingredients: [
+        { name: 'ご飯', amount: '4膳' },
+        { name: '鶏もも肉', amount: '200g' },
+        { name: '玉ねぎ', amount: '1/2個' },
+        { name: '卵', amount: '8個' },
+        { name: 'バター', amount: '20g' },
+        { name: 'ケチャップ', amount: '大さじ5' },
+        { name: '塩こしょう', amount: '少々' }
+      ],
+      steps: [
+        '鶏肉と玉ねぎを小さく切る',
+        'バターで鶏肉と玉ねぎを炒め、ご飯とケチャップを加えて炒めチキンライスに',
+        '卵2個を溶き、塩こしょうを少々。フライパンにバター少々を熱し卵を流し入れる',
+        '半熟のうちにチキンライスをのせて包む',
+        '同じ手順で4人分作り、上にケチャップで模様を描いて完成'
+      ]
+    },
+    {
+      id: 'gyudon',
+      name: '牛丼',
+      emoji: '🥩',
+      image: '',
+      season: 'all',
+      ingredients: [
+        { name: '牛バラ薄切り肉', amount: '400g' },
+        { name: '玉ねぎ', amount: '2個' },
+        { name: 'ご飯', amount: '4膳' },
+        { name: '醤油', amount: '大さじ4' },
+        { name: 'みりん', amount: '大さじ4' },
+        { name: '砂糖', amount: '大さじ2' },
+        { name: '酒', amount: '大さじ2' },
+        { name: '水', amount: '200ml' },
+        { name: '紅生姜', amount: 'お好みで' }
+      ],
+      steps: [
+        '玉ねぎは薄切りにする',
+        '鍋に水・醤油・みりん・砂糖・酒・玉ねぎを入れて煮立てる',
+        '牛肉を広げながら入れ、アクを取りながら中火で7〜8分煮る',
+        'ご飯に煮汁ごと盛り付け、紅生姜を添えて完成'
+      ]
+    },
+    {
+      id: 'napolitan',
+      name: 'ナポリタン',
+      emoji: '🍝',
+      image: '',
+      season: 'all',
+      ingredients: [
+        { name: 'スパゲッティ（1.6mm）', amount: '400g' },
+        { name: 'ウインナー', amount: '8本' },
+        { name: '玉ねぎ', amount: '1個' },
+        { name: 'ピーマン', amount: '3個' },
+        { name: 'ケチャップ', amount: '大さじ8' },
+        { name: 'バター', amount: '20g' },
+        { name: '塩こしょう', amount: '少々' },
+        { name: '粉チーズ', amount: 'お好みで' }
+      ],
+      steps: [
+        'スパゲッティを表示時間より1分長めに茹でる（もちっとさせる）',
+        'ウインナーは斜め切り、玉ねぎは薄切り、ピーマンは細切り',
+        'フライパンにバターを熱し、ウインナー→玉ねぎ→ピーマンの順で炒める',
+        'ケチャップを入れて少し煮詰め、酸味を飛ばす',
+        '茹でたスパゲッティを加えて全体に絡め、塩こしょうで味を調えて完成'
+      ]
+    },
+    // 季節メニュー
+    {
+      id: 'takenoko-gohan',
+      name: '筍ご飯',
+      emoji: '🌱',
+      image: '',
+      season: 'spring',
+      ingredients: [
+        { name: '米', amount: '3合' },
+        { name: '茹で筍', amount: '200g' },
+        { name: '油揚げ', amount: '1枚' },
+        { name: '醤油', amount: '大さじ2' },
+        { name: 'みりん', amount: '大さじ2' },
+        { name: '酒', amount: '大さじ2' },
+        { name: '和風だし', amount: '小さじ1' },
+        { name: '木の芽', amount: 'お好みで' }
+      ],
+      steps: [
+        '米を研いで30分浸水させる',
+        '筍と油揚げを薄切りにする',
+        '炊飯器に米・調味料を入れ、3合の目盛りまで水を加える',
+        '筍と油揚げをのせて普通モードで炊飯',
+        '炊き上がったら混ぜて、お好みで木の芽をのせて完成'
+      ]
+    },
+    {
+      id: 'hiyashi-chuka',
+      name: '冷やし中華',
+      emoji: '🍜',
+      image: '',
+      season: 'summer',
+      ingredients: [
+        { name: '冷やし中華の麺（タレ付き）', amount: '4人前' },
+        { name: 'きゅうり', amount: '1本' },
+        { name: 'トマト', amount: '2個' },
+        { name: 'ハム', amount: '4枚' },
+        { name: '卵', amount: '3個' },
+        { name: '砂糖', amount: '小さじ1（卵用）' },
+        { name: 'サラダ油', amount: '少々' }
+      ],
+      steps: [
+        '卵に砂糖を入れて溶き、薄焼きにして細切りにする（錦糸卵）',
+        'きゅうりとハムは細切り、トマトはくし切りにする',
+        '麺を表示通り茹で、冷水でしっかり締めて水気を切る',
+        'お皿に麺を盛り、具材を彩りよく並べる',
+        '付属のタレをかけて完成'
+      ]
+    },
+    {
+      id: 'somen',
+      name: 'そうめん',
+      emoji: '🍜',
+      image: '',
+      season: 'summer',
+      ingredients: [
+        { name: 'そうめん', amount: '4束' },
+        { name: 'めんつゆ（2倍濃縮）', amount: '200ml' },
+        { name: '水', amount: '200ml' },
+        { name: '長ねぎ', amount: '1/2本' },
+        { name: 'みょうが', amount: '2個' },
+        { name: 'おろし生姜', amount: '小さじ2' },
+        { name: '大葉', amount: '5枚' },
+        { name: '天ぷら（市販）', amount: 'あれば' }
+      ],
+      steps: [
+        '薬味を準備：ねぎは小口切り、みょうがと大葉は千切りに',
+        'めんつゆと水を合わせてつけ汁を作り、冷やしておく',
+        'そうめんを表示通り茹でて、冷水でしっかり揉み洗い',
+        '氷水を張った器に盛り付け、薬味とつけ汁を添えて完成'
+      ]
+    },
+    {
+      id: 'natsu-yasai-curry',
+      name: '夏野菜カレー',
+      emoji: '🍛',
+      image: '',
+      season: 'summer',
+      ingredients: [
+        { name: '鶏もも肉', amount: '400g' },
+        { name: 'なす', amount: '2本' },
+        { name: 'ズッキーニ', amount: '1本' },
+        { name: 'パプリカ（赤・黄）', amount: '各1個' },
+        { name: '玉ねぎ', amount: '1個' },
+        { name: 'カレールー', amount: '1箱' },
+        { name: 'サラダ油', amount: '大さじ2' },
+        { name: '水', amount: '700ml' }
+      ],
+      steps: [
+        '野菜は全部一口大に切る。鶏肉も食べやすく切る',
+        'フライパンで野菜を別途焼き色がつくまで炒めて取り出す（後でトッピング用）',
+        '鍋で玉ねぎと鶏肉を炒め、水を加えて15分煮る',
+        'ルーを溶かし入れて5分煮込む',
+        'お皿に盛り、上に焼いた夏野菜をトッピングして完成'
+      ]
+    },
+    {
+      id: 'sanma',
+      name: 'さんまの塩焼きと豚汁',
+      emoji: '🐟',
+      image: '',
+      season: 'autumn',
+      ingredients: [
+        { name: 'さんま', amount: '4尾' },
+        { name: '塩', amount: '適量' },
+        { name: '大根おろし', amount: '適量' },
+        { name: 'すだち', amount: '2個' },
+        { name: '豚こま肉', amount: '200g' },
+        { name: '玉ねぎ', amount: '1個' },
+        { name: 'にんじん', amount: '1/2本' },
+        { name: 'じゃがいも', amount: '2個' },
+        { name: '味噌', amount: '大さじ4' }
+      ],
+      steps: [
+        'さんまにしっかり塩を振って10分おく',
+        '豚汁の野菜を切り、水800mlとだしで煮始める',
+        'グリルでさんまを中火で7〜8分焼く（途中で裏返す）',
+        '豚汁に豚肉を加えて煮、最後に味噌を溶く',
+        '皿にさんまを盛り、大根おろしとすだちを添えて完成'
+      ]
+    },
+    {
+      id: 'kinoko-gohan',
+      name: 'きのこの炊き込みご飯',
+      emoji: '🍄',
+      image: '',
+      season: 'autumn',
+      ingredients: [
+        { name: '米', amount: '3合' },
+        { name: 'しめじ', amount: '1パック' },
+        { name: 'えのき', amount: '1袋' },
+        { name: '舞茸', amount: '1パック' },
+        { name: '油揚げ', amount: '1枚' },
+        { name: '醤油', amount: '大さじ3' },
+        { name: 'みりん', amount: '大さじ2' },
+        { name: '酒', amount: '大さじ2' },
+        { name: '和風だし', amount: '小さじ1' }
+      ],
+      steps: [
+        '米を研いで30分浸水',
+        'きのこは石づきを取ってほぐし、油揚げは細切りに',
+        '炊飯器に米と調味料を入れ、3合の目盛りまで水を加える',
+        'きのこと油揚げをのせて炊飯',
+        '炊き上がったら全体を混ぜて完成'
+      ]
+    },
+    {
+      id: 'sake-mushroom-foil',
+      name: '鮭ときのこのホイル焼き',
+      emoji: '🐟',
+      image: '',
+      season: 'autumn',
+      ingredients: [
+        { name: '生鮭', amount: '4切れ' },
+        { name: 'しめじ', amount: '1パック' },
+        { name: 'えのき', amount: '1袋' },
+        { name: '玉ねぎ', amount: '1個' },
+        { name: 'バター', amount: '40g' },
+        { name: '醤油', amount: '大さじ2' },
+        { name: '塩こしょう', amount: '少々' },
+        { name: 'レモン', amount: '1/2個' }
+      ],
+      steps: [
+        'アルミホイルを4枚用意。玉ねぎは薄切り、きのこはほぐす',
+        'ホイルに玉ねぎ→鮭→きのこの順でのせ、塩こしょうを振る',
+        'バターと醤油を少々かけてホイルを閉じる',
+        'フライパンに並べて蓋をし、中火で12〜15分蒸し焼き',
+        '開ける時は熱いので注意。レモンを絞って完成'
+      ]
+    },
+    {
+      id: 'nabe',
+      name: '寄せ鍋',
+      emoji: '🍲',
+      image: '',
+      season: 'winter',
+      ingredients: [
+        { name: '鶏もも肉', amount: '400g' },
+        { name: '白菜', amount: '1/4株' },
+        { name: '長ねぎ', amount: '2本' },
+        { name: '春菊', amount: '1束' },
+        { name: 'しめじ', amount: '1パック' },
+        { name: '豆腐', amount: '1丁' },
+        { name: 'うどんまたはご飯', amount: '〆用に' },
+        { name: '鍋つゆ（市販）', amount: '1袋' }
+      ],
+      steps: [
+        '白菜はざく切り、ねぎは斜め切り、春菊は半分に切る',
+        '鶏肉は一口大、豆腐はサイの目切り、しめじはほぐす',
+        '鍋につゆを入れて沸かし、火が通りにくいものから順に入れる（鶏肉→白菜の白い部分→きのこ→ねぎ→白菜の葉→春菊→豆腐）',
+        '蓋をして煮え具合を見ながら食べる',
+        '〆にうどんやご飯を入れて完成'
+      ]
+    },
+    {
+      id: 'oden',
+      name: 'おでん',
+      emoji: '🍢',
+      image: '',
+      season: 'winter',
+      ingredients: [
+        { name: '大根', amount: '1/2本' },
+        { name: 'ゆで卵', amount: '4個' },
+        { name: 'こんにゃく', amount: '1枚' },
+        { name: 'ちくわ', amount: '4本' },
+        { name: 'はんぺん', amount: '2枚' },
+        { name: 'がんもどき', amount: '4個' },
+        { name: 'おでんつゆの素（市販）', amount: '1袋' },
+        { name: '水', amount: '1.5L' },
+        { name: 'からし', amount: 'お好みで' }
+      ],
+      steps: [
+        '大根は2cm厚の輪切りにして面取り、米のとぎ汁で10分下茹で',
+        'こんにゃくは三角に切って下茹で、味が染みるよう片面に切り目を入れる',
+        '鍋に水・つゆの素・大根・卵・こんにゃくを入れて30分煮る',
+        '残りの練り物を加えてさらに15分煮込む',
+        '一度冷ますと味がしっかり染みる。からしを添えて完成'
+      ]
+    },
+    {
+      id: 'cream-stew',
+      name: 'クリームシチュー',
+      emoji: '🥣',
+      image: '',
+      season: 'winter',
+      ingredients: [
+        { name: '鶏もも肉', amount: '400g' },
+        { name: '玉ねぎ', amount: '2個' },
+        { name: 'にんじん', amount: '1本' },
+        { name: 'じゃがいも', amount: '3個' },
+        { name: 'ブロッコリー', amount: '1/2株' },
+        { name: 'シチューのルー', amount: '1箱' },
+        { name: '牛乳', amount: '300ml' },
+        { name: '水', amount: '500ml' },
+        { name: 'バター', amount: '20g' }
+      ],
+      steps: [
+        '玉ねぎはくし切り、にんじん・じゃがいもは一口大、ブロッコリーは小房に分ける',
+        '鍋にバターを熱し、鶏肉と玉ねぎを炒める',
+        'にんじん・じゃがいもを加え、水を入れて15分煮る',
+        '一度火を止めてルーを溶かし、牛乳を加えて弱火で5分',
+        '別茹でしたブロッコリーを加えて完成'
+      ]
+    }
+  ];
+
+  // ================================================================
+  // 状態管理
+  // ================================================================
+  const STORAGE_KEY = 'kondate-app-state-v1';
+
+  let state = {
+    meals: null,            // メニュー一覧
+    wishes: [],             // 今週食べたいもの
+    currentMenu: null,      // 生成された献立
+    seasonOverride: 'auto', // 季節の上書き
+    shoppingChecked: {},    // 買い物チェック状態
+    selectedDays: ['月','火','水','木','金','土','日'], // 買う日（曜日）
+    frozenMealIds: {},      // 冷凍/レトルトで済ます献立ID {id: true}
+    excludedIngredients: {},// 家にあるから買わない食材 {名前: true}
+    instockOpen: false,     // 「家にあるもの」セクション開閉
+  };
+
+  function loadState() {
+    try {
+      const raw = localStorage.getItem(STORAGE_KEY);
+      if (raw) {
+        const saved = JSON.parse(raw);
+        state = { ...state, ...saved };
+      }
+    } catch (e) {
+      console.error('読み込み失敗:', e);
+    }
+    if (!state.meals || !Array.isArray(state.meals) || state.meals.length === 0) {
+      state.meals = JSON.parse(JSON.stringify(DEFAULT_MEALS));
+    }
+  }
+
+  function saveState() {
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+    } catch (e) {
+      console.error('保存失敗:', e);
+    }
+  }
+
+  // ================================================================
+  // 季節判定
+  // ================================================================
+  function autoSeason() {
+    const m = new Date().getMonth() + 1;
+    if (m >= 3 && m <= 5) return 'spring';
+    if (m >= 6 && m <= 8) return 'summer';
+    if (m >= 9 && m <= 11) return 'autumn';
+    return 'winter';
+  }
+
+  function currentSeason() {
+    return state.seasonOverride === 'auto' ? autoSeason() : state.seasonOverride;
+  }
+
+  function seasonLabel(s) {
+    return { spring: '🌸 春', summer: '🌻 夏', autumn: '🍁 秋',
+             winter: '⛄ 冬', all: '通年' }[s] || s;
+  }
+
+  // ================================================================
+  // メニュー生成アルゴリズム
+  // ================================================================
+  function shuffle(arr) {
+    const a = arr.slice();
+    for (let i = a.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [a[i], a[j]] = [a[j], a[i]];
+    }
+    return a;
+  }
+
+  // 「希望」の文字列がメニューにマッチするかチェック
+  function findMealByWish(wish) {
+    const w = wish.trim().toLowerCase();
+    return state.meals.find(m =>
+      m.name.toLowerCase() === w ||
+      m.name.toLowerCase().includes(w) ||
+      w.includes(m.name.toLowerCase())
+    );
+  }
+
+  function generateMenu(wishes) {
+    const days = ['月', '火', '水', '木', '金', '土', '日'];
+    const result = new Array(7).fill(null);
+    const usedIds = new Set();
+    const season = currentSeason();
+
+    // 1. 希望を配置（既存メニューにあればそれを使う、なければ仮メニューとして登録）
+    const wishMeals = wishes.filter(w => w.trim()).map(w => {
+      const found = findMealByWish(w);
+      if (found) return { ...found, isWish: true };
+      return {
+        id: 'wish-' + Math.random().toString(36).substr(2, 9),
+        name: w.trim(),
+        emoji: '⭐',
+        image: '',
+        season: 'all',
+        isWish: true,
+        isCustom: true,
+        ingredients: [],
+        steps: ['（手動で材料・手順を追加してね。「メニュー」タブから登録できます）']
+      };
+    });
+
+    // 希望を曜日に分散配置（均等に）
+    if (wishMeals.length > 0) {
+      const positions = [];
+      const step = 7 / wishMeals.length;
+      for (let i = 0; i < wishMeals.length; i++) {
+        positions.push(Math.floor(i * step));
+      }
+      positions.forEach((pos, i) => {
+        result[pos] = wishMeals[i];
+        if (!wishMeals[i].isCustom) usedIds.add(wishMeals[i].id);
+      });
+    }
+
+    // 2. 季節メニューを1つ追加（まだ使われてなくて、希望にもなければ）
+    const seasonalCandidates = state.meals.filter(m =>
+      m.season === season && !usedIds.has(m.id)
+    );
+    if (seasonalCandidates.length > 0) {
+      const seasonal = { ...shuffle(seasonalCandidates)[0], isSeasonal: true };
+      const emptyIdx = result.findIndex(d => d === null);
+      if (emptyIdx >= 0) {
+        result[emptyIdx] = seasonal;
+        usedIds.add(seasonal.id);
+      }
+    }
+
+    // 3. 残りを通年メニューで埋める（季節違いは除外）
+    const otherSeasons = ['spring', 'summer', 'autumn', 'winter'].filter(s => s !== season);
+    const available = shuffle(state.meals.filter(m =>
+      !usedIds.has(m.id) && !otherSeasons.includes(m.season)
+    ));
+
+    let availIdx = 0;
+    for (let i = 0; i < 7; i++) {
+      if (result[i] === null) {
+        if (availIdx < available.length) {
+          result[i] = available[availIdx++];
+          usedIds.add(result[i].id);
+        } else {
+          // 足りない場合は通年メニューから重複OKで選ぶ
+          const pool = state.meals.filter(m => !otherSeasons.includes(m.season));
+          result[i] = shuffle(pool)[0];
+        }
+      }
+    }
+
+    return result.map((meal, i) => ({
+      day: days[i],
+      meal,
+      isWish: meal && meal.isWish,
+      isSeasonal: meal && meal.isSeasonal
+    }));
+  }
+
+  // ================================================================
+  // 買い物リスト集計
+  //  options:
+  //    selectedDays         - 集計対象の曜日配列（null なら全部）
+  //    frozenMealIds        - 冷凍/レトルトで済ます献立IDマップ
+  //    excludedIngredients  - 家にある食材マップ
+  // ================================================================
+  function aggregateShopping(menu, options = {}) {
+    const {
+      selectedDays = null,
+      frozenMealIds = {},
+      excludedIngredients = {}
+    } = options;
+    const map = new Map();
+    menu.forEach(({ meal, day }) => {
+      if (!meal || !meal.ingredients) return;
+      if (selectedDays && !selectedDays.includes(day)) return;
+      if (frozenMealIds[meal.id]) return;
+      meal.ingredients.forEach(ing => {
+        if (excludedIngredients[ing.name]) return;
+        const key = ing.name;
+        if (map.has(key)) {
+          const existing = map.get(key);
+          // 同じ食材は「+」で量を結合
+          map.set(key, {
+            name: key,
+            amount: existing.amount + ' + ' + ing.amount
+          });
+        } else {
+          map.set(key, { name: key, amount: ing.amount });
+        }
+      });
+    });
+    return [...map.values()];
+  }
+
+  // ================================================================
+  // レンダリング: 共通ユーティリティ
+  // ================================================================
+  function el(tag, attrs = {}, ...children) {
+    const e = document.createElement(tag);
+    Object.entries(attrs).forEach(([k, v]) => {
+      if (k === 'class') e.className = v;
+      else if (k === 'style') e.style.cssText = v;
+      else if (k.startsWith('on')) e.addEventListener(k.slice(2), v);
+      else if (v === true) e.setAttribute(k, '');
+      else if (v !== false && v != null) e.setAttribute(k, v);
+    });
+    children.flat().forEach(c => {
+      if (c == null || c === false) return;
+      if (typeof c === 'string') e.appendChild(document.createTextNode(c));
+      else e.appendChild(c);
+    });
+    return e;
+  }
+
+  function clear(node) { while (node.firstChild) node.removeChild(node.firstChild); }
+
+  function showToast(msg, ms = 1800) {
+    const existing = document.querySelector('.toast');
+    if (existing) existing.remove();
+    const t = el('div', { class: 'toast' }, msg);
+    document.body.appendChild(t);
+    setTimeout(() => t.remove(), ms);
+  }
+
+  // ================================================================
+  // タブ切り替え
+  // ================================================================
+  function switchTab(name) {
+    document.querySelectorAll('.screen').forEach(s => s.hidden = true);
+    document.getElementById('screen-' + name).hidden = false;
+    document.querySelectorAll('.tab-btn').forEach(b => {
+      b.classList.toggle('active', b.dataset.tab === name);
+    });
+    if (name === 'meals') renderMeals();
+    if (name === 'settings') renderSettings();
+    if (name === 'home') renderHome();
+    window.scrollTo(0, 0);
+  }
+
+  // ================================================================
+  // 「希望」入力UI
+  // ================================================================
+  function renderWishChips() {
+    const wrap = document.getElementById('wish-chips');
+    clear(wrap);
+    state.wishes.forEach((w, i) => {
+      wrap.appendChild(el('span', { class: 'chip' },
+        w,
+        el('button', {
+          'aria-label': '削除',
+          onclick: () => {
+            state.wishes.splice(i, 1);
+            saveState();
+            renderWishChips();
+          }
+        }, '✕')
+      ));
+    });
+  }
+
+  function addWish() {
+    const inp = document.getElementById('wish-input');
+    const val = inp.value.trim();
+    if (!val) return;
+    if (state.wishes.includes(val)) {
+      showToast('もう追加されてるよ');
+      return;
+    }
+    if (state.wishes.length >= 7) {
+      showToast('1週間は7日までだよ');
+      return;
+    }
+    state.wishes.push(val);
+    inp.value = '';
+    saveState();
+    renderWishChips();
+  }
+
+  // ================================================================
+  // 献立の表示
+  // ================================================================
+  function renderHome() {
+    renderWishChips();
+    renderMenuResult();
+  }
+
+  function renderMenuResult() {
+    const wrap = document.getElementById('menu-result');
+    clear(wrap);
+
+    if (!state.currentMenu) {
+      wrap.appendChild(el('div', { class: 'empty' },
+        el('div', { class: 'empty-icon' }, '🍽'),
+        el('p', {}, 'まだ献立は決まってないよ'),
+        el('p', {}, '上の大きいボタンを押してね！')
+      ));
+      return;
+    }
+
+    // 7日分のカード
+    const list = el('div', { class: 'menu-list' });
+    state.currentMenu.forEach((entry, i) => {
+      const { day, meal, isWish, isSeasonal } = entry;
+      const card = el('div', {
+        class: 'day-card' + (isWish ? ' is-wish' : '') + (isSeasonal ? ' is-seasonal' : ''),
+        onclick: () => openRecipeModal(i)
+      },
+        el('div', { class: 'day-label' },
+          el('div', { class: 'day-name' }, day),
+          el('div', { class: 'day-date' }, getDateString(i))
+        ),
+        renderMealThumb(meal),
+        el('div', { class: 'meal-info' },
+          el('p', { class: 'meal-name' }, meal.name),
+          isWish ? el('div', { class: 'meal-tag wish-tag' }, '⭐ 今週の希望')
+                 : isSeasonal ? el('div', { class: 'meal-tag seasonal-tag' }, '🌿 ' + seasonLabel(meal.season) + 'の旬')
+                 : el('div', { class: 'meal-tag' }, 'タップでレシピを見る')
+        ),
+        el('span', { class: 'arrow' }, '›')
+      );
+      list.appendChild(card);
+    });
+    wrap.appendChild(list);
+
+    // 買い物リストボタン
+    wrap.appendChild(el('button', {
+      class: 'btn btn-secondary btn-block',
+      style: 'margin-top:14px;',
+      onclick: openShoppingModal
+    }, '🛒 買い物リストを見る'));
+
+    // もう一度生成
+    wrap.appendChild(el('button', {
+      class: 'btn btn-ghost btn-block',
+      style: 'margin-top:8px;',
+      onclick: regenerateMenu
+    }, '🎲 もう一度献立を考える'));
+  }
+
+  function renderMealThumb(meal) {
+    if (meal.image && meal.image.trim()) {
+      return el('div', { class: 'meal-thumb' },
+        el('img', { src: meal.image, alt: meal.name, onerror: function() {
+          this.parentNode.textContent = meal.emoji || '🍽';
+        }})
+      );
+    }
+    return el('div', { class: 'meal-thumb' }, meal.emoji || '🍽');
+  }
+
+  function getDateString(dayOffsetFromMonday) {
+    // 今日が月曜日 = 0、火曜日 = 1 ... 日曜日 = 6
+    const today = new Date();
+    const dow = today.getDay(); // 0=Sun, 1=Mon...
+    const mondayOffset = dow === 0 ? -6 : 1 - dow; // 今週の月曜
+    const target = new Date(today);
+    target.setDate(today.getDate() + mondayOffset + dayOffsetFromMonday);
+    return `${target.getMonth() + 1}/${target.getDate()}`;
+  }
+
+  function regenerateMenu() {
+    state.currentMenu = generateMenu(state.wishes);
+    state.shoppingChecked = {};
+    state.frozenMealIds = {};
+    state.excludedIngredients = {};
+    state.selectedDays = ['月','火','水','木','金','土','日'];
+    saveState();
+    renderMenuResult();
+    window.scrollTo({ top: document.querySelector('#generate-btn').offsetTop, behavior: 'smooth' });
+  }
+
+  // ================================================================
+  // レシピモーダル
+  // ================================================================
+  function openRecipeModal(menuIndex) {
+    const entry = state.currentMenu[menuIndex];
+    if (!entry || !entry.meal) return;
+    const meal = entry.meal;
+
+    document.getElementById('recipe-title').textContent = meal.name;
+    const body = document.getElementById('recipe-body');
+    clear(body);
+
+    // ヒーロー画像
+    const hero = el('div', { class: 'recipe-hero' });
+    if (meal.image && meal.image.trim()) {
+      hero.appendChild(el('img', { src: meal.image, alt: meal.name, onerror: function() {
+        this.parentNode.textContent = meal.emoji || '🍽';
+      }}));
+    } else {
+      hero.textContent = meal.emoji || '🍽';
+    }
+    body.appendChild(hero);
+
+    // 季節タグ
+    body.appendChild(el('div', { style: 'margin-bottom:12px;' },
+      el('span', { class: `season-badge season-${meal.season}` }, seasonLabel(meal.season))
+    ));
+
+    // 材料
+    if (meal.ingredients && meal.ingredients.length > 0) {
+      const sec = el('div', { class: 'recipe-section card', style: 'padding:14px 16px;' });
+      sec.appendChild(el('h3', {}, '🥬 材料（4人分）'));
+      const ul = el('ul', { class: 'ingredient-list' });
+      meal.ingredients.forEach(ing => {
+        ul.appendChild(el('li', {},
+          el('span', { class: 'ing-name' }, ing.name),
+          el('span', { class: 'ing-amount' }, ing.amount)
+        ));
+      });
+      sec.appendChild(ul);
+      body.appendChild(sec);
+    }
+
+    // 手順
+    if (meal.steps && meal.steps.length > 0) {
+      const sec = el('div', { class: 'recipe-section card', style: 'padding:14px 16px;' });
+      sec.appendChild(el('h3', {}, '👩‍🍳 作り方'));
+      const ol = el('ol', { class: 'step-list' });
+      meal.steps.forEach(step => {
+        ol.appendChild(el('li', {}, step));
+      });
+      sec.appendChild(ol);
+      body.appendChild(sec);
+    }
+
+    document.getElementById('recipe-modal').hidden = false;
+  }
+
+  // ================================================================
+  // 買い物リストモーダル（3ステップ）
+  // ================================================================
+  function openShoppingModal() {
+    if (!state.currentMenu) return;
+
+    // 古いstateとの互換性確保
+    if (!state.selectedDays || !Array.isArray(state.selectedDays)) {
+      state.selectedDays = state.currentMenu.map(({day}) => day);
+    }
+    if (!state.frozenMealIds) state.frozenMealIds = {};
+    if (!state.excludedIngredients) state.excludedIngredients = {};
+
+    renderShoppingModal();
+    document.getElementById('shopping-modal').hidden = false;
+  }
+
+  // モーダル全体を再描画
+  function renderShoppingModal() {
+    renderDayPicker();
+    renderSeasonHint();
+    renderFrozenList();
+    renderInstockSection();
+    renderShoppingList();
+  }
+
+  // ① 曜日ピッカー
+  function renderDayPicker() {
+    const picker = document.getElementById('day-picker');
+    clear(picker);
+    state.currentMenu.forEach(({day, meal}) => {
+      const isSelected = state.selectedDays.includes(day);
+      const chip = el('div', {
+        class: 'day-chip' + (isSelected ? ' selected' : ''),
+        onclick: () => {
+          if (isSelected) {
+            state.selectedDays = state.selectedDays.filter(d => d !== day);
+          } else {
+            state.selectedDays = [...state.selectedDays, day];
+          }
+          saveState();
+          renderShoppingModal();
+        }
+      },
+        day,
+        el('span', { class: 'day-meal' }, meal ? meal.name.slice(0, 4) : '-')
+      );
+      picker.appendChild(chip);
+    });
+  }
+
+  // 季節＆選択日数に応じたヒント
+  function renderSeasonHint() {
+    const hint = document.getElementById('season-hint');
+    const season = currentSeason();
+    const selectedCount = state.selectedDays.length;
+    let msg = '';
+
+    if (selectedCount === 0) {
+      msg = '👆 上から買い物に行く日を選んでね';
+    } else if (season === 'summer' && selectedCount > 4) {
+      msg = '🌻 夏は野菜の傷みが早いよ。3〜4日分ずつ買って2回に分けるのがおすすめ';
+    } else if (season === 'summer') {
+      msg = '🌻 夏は3〜4日分ずつ買うとちょうどいい';
+    } else if (season === 'winter' && selectedCount === 7) {
+      msg = '⛄ 冬は野菜が長持ちするから、1週間まとめ買いでOK';
+    } else if ((season === 'spring' || season === 'autumn') && selectedCount > 5) {
+      msg = '💡 葉物野菜は早めに使ってね。根菜は1週間もつよ';
+    }
+
+    if (msg) {
+      hint.textContent = msg;
+      hint.hidden = false;
+    } else {
+      hint.hidden = true;
+    }
+  }
+
+  // ② 冷凍/レトルト指定リスト
+  function renderFrozenList() {
+    const list = document.getElementById('frozen-list');
+    clear(list);
+    const visible = state.currentMenu.filter(({day, meal}) =>
+      meal && state.selectedDays.includes(day)
+    );
+    if (visible.length === 0) {
+      list.appendChild(el('p', { class: 'empty-mini' }, '日付が選ばれてないよ'));
+      return;
+    }
+    visible.forEach(({day, meal}) => {
+      const checked = !!state.frozenMealIds[meal.id];
+      const item = el('div', {
+        class: 'frozen-item' + (checked ? ' checked' : ''),
+        onclick: () => {
+          if (checked) delete state.frozenMealIds[meal.id];
+          else state.frozenMealIds[meal.id] = true;
+          saveState();
+          renderShoppingModal();
+        }
+      },
+        el('span', { class: 'frozen-check' }),
+        el('span', { class: 'frozen-day' }, day),
+        el('span', { class: 'frozen-label' },
+          `${meal.emoji || '🍽'} ${meal.name}`)
+      );
+      list.appendChild(item);
+    });
+  }
+
+  // ③ 在庫セクション（折りたたみ）
+  function renderInstockSection() {
+    const toggle = document.getElementById('instock-toggle');
+    const list = document.getElementById('instock-list');
+    const open = !!state.instockOpen;
+    toggle.textContent = open ? '▲ 在庫チェックを閉じる' : '▼ 在庫チェックを開く';
+    list.hidden = !open;
+    if (!open) return;
+
+    clear(list);
+    // 選択日 ＆ 冷凍指定じゃない献立から食材を集める
+    const ingredientSet = new Set();
+    state.currentMenu.forEach(({day, meal}) => {
+      if (!meal || !meal.ingredients) return;
+      if (!state.selectedDays.includes(day)) return;
+      if (state.frozenMealIds[meal.id]) return;
+      meal.ingredients.forEach(ing => ingredientSet.add(ing.name));
+    });
+    const ingredients = [...ingredientSet];
+    if (ingredients.length === 0) {
+      list.appendChild(el('p', { class: 'empty-mini' }, '対象の食材なし'));
+      return;
+    }
+    ingredients.forEach(name => {
+      const checked = !!state.excludedIngredients[name];
+      const item = el('div', {
+        class: 'frozen-item' + (checked ? ' checked' : ''),
+        onclick: () => {
+          if (checked) delete state.excludedIngredients[name];
+          else state.excludedIngredients[name] = true;
+          saveState();
+          renderShoppingModal();
+        }
+      },
+        el('span', { class: 'frozen-check' }),
+        el('span', { class: 'frozen-label' }, name)
+      );
+      list.appendChild(item);
+    });
+  }
+
+  // ④ 集計後の買い物リスト
+  function renderShoppingList() {
+    const items = aggregateShopping(state.currentMenu, {
+      selectedDays: state.selectedDays,
+      frozenMealIds: state.frozenMealIds,
+      excludedIngredients: state.excludedIngredients
+    });
+    const card = document.getElementById('shopping-card');
+    const countEl = document.getElementById('item-count');
+    clear(card);
+    countEl.textContent = items.length > 0 ? `${items.length}品` : '';
+
+    if (items.length === 0) {
+      card.appendChild(el('p', { class: 'empty' }, '買うものがないよ'));
+      return;
+    }
+    const ul = el('ul', { class: 'shopping-list' });
+    items.forEach((item, i) => {
+      const checked = !!state.shoppingChecked[item.name];
+      const li = el('li', { class: checked ? 'done' : '' });
+      const check = el('span', { class: 'check' + (checked ? ' checked' : ''),
+        onclick: () => {
+          state.shoppingChecked[item.name] = !state.shoppingChecked[item.name];
+          saveState();
+          li.classList.toggle('done');
+          check.classList.toggle('checked');
+        }
+      });
+      li.appendChild(check);
+      li.appendChild(el('span', { class: 'item-name' }, item.name));
+      li.appendChild(el('span', { class: 'item-amount' }, item.amount));
+      ul.appendChild(li);
+    });
+    card.appendChild(ul);
+  }
+
+  function getShoppingText() {
+    const items = aggregateShopping(state.currentMenu, {
+      selectedDays: state.selectedDays,
+      frozenMealIds: state.frozenMealIds,
+      excludedIngredients: state.excludedIngredients
+    });
+    if (items.length === 0) return '';
+    const lines = items.map(it => `☐ ${it.name}　${it.amount}`);
+
+    // 対象の献立だけ表示
+    const targetMenu = state.currentMenu.filter(({day, meal}) =>
+      meal && state.selectedDays.includes(day) && !state.frozenMealIds[meal.id]
+    );
+    const menuLines = targetMenu.map(({day, meal}) => `${day}: ${meal.name}`);
+
+    const dayCount = state.selectedDays.length;
+    const title = dayCount === 7 ? '🛒 今週の買い物リスト' : `🛒 買い物リスト（${dayCount}日分）`;
+
+    return `${title}\n\n${lines.join('\n')}\n\n― 対象の献立 ―\n${menuLines.join('\n')}`;
+  }
+
+  async function shareShoppingList() {
+    const text = getShoppingText();
+    if (!text) {
+      showToast('リストが空だよ');
+      return;
+    }
+    if (navigator.share) {
+      try {
+        await navigator.share({
+          title: '今週の買い物リスト',
+          text: text
+        });
+      } catch (e) {
+        if (e.name !== 'AbortError') {
+          showToast('共有に失敗。コピーしてみて');
+        }
+      }
+    } else {
+      // 共有非対応の場合はコピー
+      copyShoppingList();
+    }
+  }
+
+  async function copyShoppingList() {
+    const text = getShoppingText();
+    if (!text) return;
+    try {
+      await navigator.clipboard.writeText(text);
+      showToast('コピーしたよ！メモ等に貼り付けてね');
+    } catch (e) {
+      // フォールバック
+      const ta = document.createElement('textarea');
+      ta.value = text;
+      document.body.appendChild(ta);
+      ta.select();
+      try { document.execCommand('copy'); showToast('コピーしたよ'); }
+      catch (_) { showToast('コピー失敗 ; ;'); }
+      document.body.removeChild(ta);
+    }
+  }
+
+  // ================================================================
+  // メニュー一覧画面
+  // ================================================================
+  function renderMeals() {
+    const wrap = document.getElementById('meals-list');
+    clear(wrap);
+
+    // 季節順にソート
+    const seasonOrder = { all: 0, spring: 1, summer: 2, autumn: 3, winter: 4 };
+    const sorted = state.meals.slice().sort((a, b) => {
+      return (seasonOrder[a.season] || 0) - (seasonOrder[b.season] || 0);
+    });
+
+    sorted.forEach(meal => {
+      const card = el('div', {
+        class: 'meal-card',
+        onclick: () => openMealEditor(meal.id)
+      },
+        renderMealThumb(meal),
+        el('div', { class: 'meal-info' },
+          el('p', { class: 'meal-name' }, meal.name),
+          el('div', { class: 'meal-meta' },
+            el('span', { class: `season-badge season-${meal.season}` }, seasonLabel(meal.season)),
+            (meal.ingredients && meal.ingredients.length > 0)
+              ? `材料 ${meal.ingredients.length}・手順 ${meal.steps ? meal.steps.length : 0}`
+              : '材料未登録'
+          )
+        ),
+        el('span', { class: 'arrow', style: 'color:var(--text-muted); font-size:20px;' }, '›')
+      );
+      wrap.appendChild(card);
+    });
+
+    if (sorted.length === 0) {
+      wrap.appendChild(el('div', { class: 'empty' },
+        el('div', { class: 'empty-icon' }, '📚'),
+        el('p', {}, 'メニューがありません'),
+        el('p', {}, '右上の「+ 追加」から登録してね')
+      ));
+    }
+  }
+
+  // ================================================================
+  // メニュー編集モーダル
+  // ================================================================
+  let editingMealId = null; // null = 新規
+
+  function openMealEditor(mealId) {
+    editingMealId = mealId;
+    const isNew = mealId == null;
+    const meal = isNew ? {
+      name: '', emoji: '🍽', image: '', season: 'all',
+      ingredients: [{ name: '', amount: '' }],
+      steps: ['']
+    } : state.meals.find(m => m.id === mealId);
+
+    if (!meal) return;
+
+    document.getElementById('meal-edit-title').textContent = isNew ? 'メニューを追加' : 'メニューを編集';
+    document.getElementById('edit-name').value = meal.name;
+    document.getElementById('edit-emoji').value = meal.emoji || '';
+    document.getElementById('edit-image').value = meal.image || '';
+
+    // 季節
+    document.querySelectorAll('input[name="edit-season"]').forEach(r => {
+      r.checked = (r.value === meal.season);
+    });
+
+    // 材料
+    const ingWrap = document.getElementById('edit-ingredients');
+    clear(ingWrap);
+    const ingredients = meal.ingredients && meal.ingredients.length > 0
+      ? meal.ingredients
+      : [{ name: '', amount: '' }];
+    ingredients.forEach(ing => addIngredientRow(ing.name, ing.amount));
+
+    // 手順
+    const stWrap = document.getElementById('edit-steps');
+    clear(stWrap);
+    const steps = meal.steps && meal.steps.length > 0 ? meal.steps : [''];
+    steps.forEach(s => addStepRow(s));
+
+    document.getElementById('delete-meal-btn').hidden = isNew;
+
+    document.getElementById('meal-edit-modal').hidden = false;
+  }
+
+  function addIngredientRow(name = '', amount = '') {
+    const wrap = document.getElementById('edit-ingredients');
+    const row = el('div', { class: 'dynamic-list-item' },
+      el('input', { class: 'input', type: 'text', placeholder: '材料名', value: name, style: 'flex:2;' }),
+      el('input', { class: 'input', type: 'text', placeholder: '量', value: amount, style: 'flex:1;' }),
+      el('button', { class: 'remove-btn', type: 'button',
+        onclick: () => row.remove() }, '✕')
+    );
+    wrap.appendChild(row);
+  }
+
+  function addStepRow(text = '') {
+    const wrap = document.getElementById('edit-steps');
+    const row = el('div', { class: 'dynamic-list-item' },
+      el('textarea', { class: 'input', placeholder: '手順を書く', style: 'flex:1;' }, text),
+      el('button', { class: 'remove-btn', type: 'button',
+        onclick: () => row.remove() }, '✕')
+    );
+    // textareaにvalueをセット
+    row.querySelector('textarea').value = text;
+    wrap.appendChild(row);
+  }
+
+  function saveMeal() {
+    const name = document.getElementById('edit-name').value.trim();
+    if (!name) {
+      showToast('料理名を入れてね');
+      return;
+    }
+    const emoji = document.getElementById('edit-emoji').value.trim() || '🍽';
+    const image = document.getElementById('edit-image').value.trim();
+    const seasonRadio = document.querySelector('input[name="edit-season"]:checked');
+    const season = seasonRadio ? seasonRadio.value : 'all';
+
+    // 材料
+    const ingredients = [];
+    document.querySelectorAll('#edit-ingredients .dynamic-list-item').forEach(row => {
+      const inputs = row.querySelectorAll('input');
+      const n = inputs[0].value.trim();
+      const a = inputs[1].value.trim();
+      if (n) ingredients.push({ name: n, amount: a });
+    });
+
+    // 手順
+    const steps = [];
+    document.querySelectorAll('#edit-steps .dynamic-list-item').forEach(row => {
+      const t = row.querySelector('textarea').value.trim();
+      if (t) steps.push(t);
+    });
+
+    if (editingMealId == null) {
+      // 新規
+      const newMeal = {
+        id: 'custom-' + Date.now(),
+        name, emoji, image, season, ingredients, steps
+      };
+      state.meals.push(newMeal);
+    } else {
+      // 編集
+      const idx = state.meals.findIndex(m => m.id === editingMealId);
+      if (idx >= 0) {
+        state.meals[idx] = { ...state.meals[idx], name, emoji, image, season, ingredients, steps };
+      }
+    }
+
+    saveState();
+    document.getElementById('meal-edit-modal').hidden = true;
+    renderMeals();
+    showToast(editingMealId == null ? '追加したよ！' : '保存したよ！');
+  }
+
+  function deleteMeal() {
+    if (editingMealId == null) return;
+    if (!confirm('このメニューを削除する？')) return;
+    state.meals = state.meals.filter(m => m.id !== editingMealId);
+    saveState();
+    document.getElementById('meal-edit-modal').hidden = true;
+    renderMeals();
+    showToast('削除したよ');
+  }
+
+  // ================================================================
+  // 設定画面
+  // ================================================================
+  function renderSettings() {
+    document.querySelectorAll('input[name="season-set"]').forEach(r => {
+      r.checked = (r.value === state.seasonOverride);
+    });
+    document.getElementById('current-season-hint').textContent =
+      `今は ${seasonLabel(currentSeason())} として動作中`;
+  }
+
+  function resetAll() {
+    if (!confirm('本当に全データをリセットする？\n（追加したメニュー・希望・献立がすべて消えます）')) return;
+    if (!confirm('もう一度確認：本当にいい？')) return;
+    localStorage.removeItem(STORAGE_KEY);
+    location.reload();
+  }
+
+  // ================================================================
+  // 初期化
+  // ================================================================
+  function bindEvents() {
+    // タブ
+    document.querySelectorAll('.tab-btn').forEach(b => {
+      b.addEventListener('click', () => switchTab(b.dataset.tab));
+    });
+
+    // 希望追加
+    document.getElementById('wish-add-btn').addEventListener('click', addWish);
+    document.getElementById('wish-input').addEventListener('keydown', e => {
+      if (e.key === 'Enter') { e.preventDefault(); addWish(); }
+    });
+
+    // 献立生成
+    document.getElementById('generate-btn').addEventListener('click', regenerateMenu);
+
+    // モーダル閉じる
+    document.querySelectorAll('[data-close]').forEach(b => {
+      b.addEventListener('click', () => {
+        document.getElementById(b.dataset.close).hidden = true;
+      });
+    });
+    document.querySelectorAll('.modal-backdrop').forEach(bd => {
+      bd.addEventListener('click', e => {
+        if (e.target === bd) bd.hidden = true;
+      });
+    });
+
+    // 共有・コピー
+    document.getElementById('share-btn').addEventListener('click', shareShoppingList);
+    document.getElementById('copy-btn').addEventListener('click', copyShoppingList);
+
+    // 買い物リスト：日付選択コントロール
+    document.getElementById('select-all-days').addEventListener('click', () => {
+      state.selectedDays = state.currentMenu.map(({day}) => day);
+      saveState();
+      renderShoppingModal();
+    });
+    document.getElementById('clear-all-days').addEventListener('click', () => {
+      state.selectedDays = [];
+      saveState();
+      renderShoppingModal();
+    });
+
+    // 在庫セクションの開閉
+    document.getElementById('instock-toggle').addEventListener('click', () => {
+      state.instockOpen = !state.instockOpen;
+      saveState();
+      renderInstockSection();
+    });
+
+    // メニュー追加
+    document.getElementById('add-meal-btn').addEventListener('click', () => openMealEditor(null));
+    document.getElementById('save-meal-btn').addEventListener('click', saveMeal);
+    document.getElementById('delete-meal-btn').addEventListener('click', deleteMeal);
+    document.getElementById('add-ing-btn').addEventListener('click', () => addIngredientRow());
+    document.getElementById('add-step-btn').addEventListener('click', () => addStepRow());
+
+    // 設定
+    document.querySelectorAll('input[name="season-set"]').forEach(r => {
+      r.addEventListener('change', () => {
+        state.seasonOverride = r.value;
+        saveState();
+        renderSettings();
+      });
+    });
+    document.getElementById('reset-btn').addEventListener('click', resetAll);
+  }
+
+  function init() {
+    loadState();
+    bindEvents();
+    switchTab('home');
+  }
+
+  document.addEventListener('DOMContentLoaded', init);
+  </script>
+
+</body>
+</html>
