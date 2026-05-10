@@ -8,6 +8,13 @@
   - 季節に応じた買い物のヒントを表示
     （夏→3〜4日推奨、冬→1週間OK）
   - 共有テキストも対象日数だけのリストに変更
+
+  更新日: 2026-05-10 (v1.2)
+  変更内容:
+  - 「📤 この献立を共有」ボタンを追加
+    献立データをURLに変換してiOS共有シートで家族に送れる
+  - 共有URLを開くと「献立を読み込みますか？」ダイアログを表示
+    読み込み後は買い物リストもそのまま使える
 -->
 <!DOCTYPE html>
 <html lang="ja">
@@ -947,6 +954,64 @@
       from { opacity: 0; transform: translate(-50%, 10px); }
       to { opacity: 1; transform: translate(-50%, 0); }
     }
+
+    /* ============================================
+       共有献立 受け取りダイアログ（中央表示）
+       ============================================ */
+    .dialog-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.55);
+      z-index: 300;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+    }
+    .dialog-overlay[hidden] { display: none; }
+
+    .dialog-box {
+      background: var(--card);
+      border-radius: 24px;
+      width: 100%;
+      max-width: 400px;
+      overflow: hidden;
+      animation: dialogPop 0.28s cubic-bezier(0.34,1.56,0.64,1);
+      box-shadow: 0 16px 48px rgba(0,0,0,0.25);
+    }
+    @keyframes dialogPop {
+      from { opacity: 0; transform: scale(0.88); }
+      to { opacity: 1; transform: scale(1); }
+    }
+
+    .dialog-header {
+      background: linear-gradient(135deg, var(--accent) 0%, var(--primary) 100%);
+      padding: 18px 20px 14px;
+      text-align: center;
+      color: white;
+    }
+    .dialog-header .dialog-icon { font-size: 36px; margin-bottom: 4px; }
+    .dialog-header h2 { margin: 0; font-size: 17px; font-weight: 800; }
+    .dialog-header .dialog-sub { font-size: 12px; opacity: 0.9; margin-top: 2px; }
+
+    .dialog-body {
+      padding: 14px 18px 6px;
+    }
+    .share-preview-row {
+      padding: 7px 10px;
+      font-size: 14px;
+      border-bottom: 1px dashed var(--border);
+      color: var(--text);
+    }
+    .share-preview-row:last-child { border-bottom: none; }
+
+    .dialog-footer {
+      padding: 12px 18px 18px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+    .dialog-footer .btn { width: 100%; padding: 14px; font-size: 16px; }
   </style>
 </head>
 <body>
@@ -1044,7 +1109,7 @@
     </div>
 
     <p class="hint" style="text-align:center; margin-top:20px;">
-      version 1.0 ・ 作: もりもり家
+      version 1.2 ・ 作: もりもり家
     </p>
   </main>
 
@@ -2116,6 +2181,13 @@
       onclick: openShoppingModal
     }, '🛒 買い物リストを見る'));
 
+    // 献立共有ボタン
+    wrap.appendChild(el('button', {
+      class: 'btn btn-accent btn-block',
+      style: 'margin-top:8px;',
+      onclick: shareMenuAsURL
+    }, '📤 この献立を家族に共有'));
+
     // もう一度生成
     wrap.appendChild(el('button', {
       class: 'btn btn-ghost btn-block',
@@ -2649,6 +2721,126 @@
   }
 
   // ================================================================
+  // 献立のURL共有
+  // ================================================================
+
+  // 日本語を含むデータをURL安全なbase64に変換
+  function encodeMenuData(menu) {
+    const data = { menu: menu, sharedAt: new Date().toISOString() };
+    const json = JSON.stringify(data);
+    const bytes = new TextEncoder().encode(json);
+    let binary = '';
+    bytes.forEach(b => binary += String.fromCharCode(b));
+    return btoa(binary).replace(/\+/g, '-').replace(/\//g, '_').replace(/=/g, '');
+  }
+
+  // URL安全なbase64からデータを復元
+  function decodeMenuData(encoded) {
+    try {
+      const padded = encoded.replace(/-/g, '+').replace(/_/g, '/');
+      const pad = (4 - padded.length % 4) % 4;
+      const b64 = padded + '='.repeat(pad);
+      const binary = atob(b64);
+      const bytes = new Uint8Array(binary.length);
+      for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+      return JSON.parse(new TextDecoder().decode(bytes));
+    } catch (e) {
+      return null;
+    }
+  }
+
+  async function shareMenuAsURL() {
+    if (!state.currentMenu) return;
+    const encoded = encodeMenuData(state.currentMenu);
+    const baseUrl = location.href.split('#')[0];
+    const shareUrl = baseUrl + '#share=' + encoded;
+
+    if (navigator.share) {
+      try {
+        await navigator.share({
+          title: 'うちの今週の献立🍳',
+          text: '今週の献立を共有するよ！アプリで開いてね👇',
+          url: shareUrl
+        });
+      } catch (e) {
+        if (e.name !== 'AbortError') {
+          await _copyText(shareUrl);
+          showToast('URLをコピーしたよ！LINEなどに貼って送ってね');
+        }
+      }
+    } else {
+      await _copyText(shareUrl);
+      showToast('URLをコピーしたよ！LINEなどに貼って送ってね');
+    }
+  }
+
+  async function _copyText(text) {
+    try {
+      await navigator.clipboard.writeText(text);
+    } catch (e) {
+      const ta = document.createElement('textarea');
+      ta.value = text;
+      document.body.appendChild(ta);
+      ta.select();
+      try { document.execCommand('copy'); } catch (_) {}
+      document.body.removeChild(ta);
+    }
+  }
+
+  // 起動時にURLハッシュをチェックして共有データを検出
+  function checkSharedMenu() {
+    const hash = location.hash;
+    if (!hash.startsWith('#share=')) return;
+
+    // ハッシュをすぐ消す（リロードで再表示されないように）
+    history.replaceState(null, '', location.pathname + location.search);
+
+    const encoded = hash.slice(7);
+    const data = decodeMenuData(encoded);
+
+    if (!data || !Array.isArray(data.menu) || data.menu.length === 0) {
+      showToast('共有データの読み込みに失敗したよ');
+      return;
+    }
+
+    // 日付表示
+    let dateStr = '';
+    if (data.sharedAt) {
+      const d = new Date(data.sharedAt);
+      dateStr = `${d.getMonth() + 1}/${d.getDate()} に共有された献立`;
+    }
+    document.getElementById('share-import-date').textContent = dateStr;
+
+    // 献立プレビュー
+    const preview = document.getElementById('share-import-preview');
+    preview.innerHTML = '';
+    data.menu.slice(0, 7).forEach(({ day, meal }) => {
+      const row = document.createElement('div');
+      row.className = 'share-preview-row';
+      row.textContent = `${day}：${meal ? (meal.emoji || '') + ' ' + meal.name : '—'}`;
+      preview.appendChild(row);
+    });
+
+    // 保留データを保存してダイアログ表示
+    window._pendingSharedMenu = data.menu;
+    document.getElementById('share-import-modal').hidden = false;
+  }
+
+  function loadSharedMenu() {
+    if (!window._pendingSharedMenu) return;
+    state.currentMenu = window._pendingSharedMenu;
+    state.shoppingChecked = {};
+    state.frozenMealIds = {};
+    state.excludedIngredients = {};
+    state.selectedDays = window._pendingSharedMenu.map(({ day }) => day);
+    window._pendingSharedMenu = null;
+    saveState();
+    document.getElementById('share-import-modal').hidden = true;
+    switchTab('home');
+    showToast('献立を読み込んだよ！🎉');
+  }
+
+  // ================================================================
   // 初期化
   // ================================================================
   function bindEvents() {
@@ -2717,16 +2909,44 @@
       });
     });
     document.getElementById('reset-btn').addEventListener('click', resetAll);
+
+    // 共有献立の受け取りダイアログ
+    document.getElementById('share-import-ok').addEventListener('click', loadSharedMenu);
+    document.getElementById('share-import-cancel').addEventListener('click', () => {
+      window._pendingSharedMenu = null;
+      document.getElementById('share-import-modal').hidden = true;
+    });
   }
 
   function init() {
     loadState();
     bindEvents();
     switchTab('home');
+    checkSharedMenu(); // URLに共有データがあれば読み込みダイアログを表示
   }
 
   document.addEventListener('DOMContentLoaded', init);
   </script>
+
+  <!-- ============================================
+       ダイアログ: 共有された献立を受け取る
+       ============================================ -->
+  <div class="dialog-overlay" id="share-import-modal" hidden>
+    <div class="dialog-box">
+      <div class="dialog-header">
+        <div class="dialog-icon">📨</div>
+        <h2>共有された献立が届いたよ！</h2>
+        <div class="dialog-sub" id="share-import-date"></div>
+      </div>
+      <div class="dialog-body">
+        <div id="share-import-preview"></div>
+      </div>
+      <div class="dialog-footer">
+        <button class="btn btn-primary" id="share-import-ok">✅ この献立を読み込む</button>
+        <button class="btn btn-ghost" id="share-import-cancel">キャンセル</button>
+      </div>
+    </div>
+  </div>
 
 </body>
 </html>
